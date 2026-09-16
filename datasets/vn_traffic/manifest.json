@@ -1,0 +1,16 @@
+[
+  {
+    "video_file": "accident_001.mp4",
+    "label": "accident",
+    "start_frame": 120,
+    "end_frame": 180,
+    "accident_type": "motorcycle_collision"
+  },
+  {
+    "video_file": "normal_001.mp4",
+    "label": "normal",
+    "start_frame": -1,
+    "end_frame": -1,
+    "accident_type": "none"
+  }
+]

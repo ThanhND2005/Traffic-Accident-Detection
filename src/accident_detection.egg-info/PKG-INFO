@@ -1,0 +1,29 @@
+Metadata-Version: 2.4
+Name: accident_detection
+Version: 0.1.0
+Summary: Automated Traffic Accident Detection System using YOLO11, ByteTrack, and Multi-modal Cascade Fusion
+Author: Antigravity AI Team
+Author-email: contact@example.com
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Requires-Python: >=3.9
+Requires-Dist: torch>=2.0.0
+Requires-Dist: torchvision>=0.15.0
+Requires-Dist: ultralytics>=8.3.0
+Requires-Dist: opencv-python>=4.8.0
+Requires-Dist: numpy>=1.26.0
+Requires-Dist: scipy>=1.10.0
+Requires-Dist: pandas>=2.0.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: tqdm>=4.65.0
+Requires-Dist: gradio>=4.0.0
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
