@@ -14,7 +14,7 @@ setup(
         "torchvision>=0.15.0",
         "ultralytics>=8.3.0",
         "opencv-python>=4.8.0",
-        "numpy>=1.24.0,<2.0.0",
+        "numpy>=1.26.0",
         "scipy>=1.10.0",
         "pandas>=2.0.0",
         "pyyaml>=6.0",
