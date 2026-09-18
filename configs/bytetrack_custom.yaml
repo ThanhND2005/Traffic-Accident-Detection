@@ -1,0 +1,8 @@
+# ByteTrack custom configuration tuned for dense Vietnamese traffic with many small motorcycles
+tracker_type: bytetrack
+track_high_thresh: 0.4   # Threshold for first association (lowered from 0.5 for small motorcycles)
+track_low_thresh: 0.1    # Threshold for second association
+new_track_thresh: 0.5    # Threshold for creating a new track
+track_buffer: 60         # Number of frames to keep lost tracks alive
+match_thresh: 0.8        # Matching threshold in Hungarian algorithm
+fuse_score: true         # Fuse detection confidence score with similarity
