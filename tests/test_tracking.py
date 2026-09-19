@@ -52,3 +52,19 @@ def test_trajectory_cleanup():
     # Advance time without updating track 1
     manager.cleanup_old_tracks(current_frame=100, max_age=50)
     assert 1 not in manager.tracks
+
+
+def test_trajectory_active_and_all_tracks():
+    manager = TrajectoryManager(max_history=50)
+    for f in range(10):
+        manager.update(f, np.array([1]), np.array([[0, 0, 10, 10]]), np.array([2]), np.array([0.9]))
+    # Now simulate time moving to frame 100 without track 1
+    manager.current_frame = 100
+
+    # With default max_age=30, track 1 is inactive at frame 100
+    assert len(manager.get_active_tracks(min_length=5)) == 0
+    # With max_age=None, all tracks meeting min_length are returned
+    assert manager.get_active_tracks(min_length=5, max_age=None) == [1]
+    # get_all_tracks returns all tracks meeting min_length
+    assert manager.get_all_tracks(min_length=5) == [1]
+
