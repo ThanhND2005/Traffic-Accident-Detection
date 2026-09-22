@@ -59,7 +59,45 @@ class PostProcessor:
         else:
             self.history_buffer.append((frame_id, 0.0, None))
 
-        # Check if cooldown is active
+        # Check if candidate extends an ongoing confirmed incident (e.g. 3rd vehicle joins collision)
+        if candidate_event is not None and candidate_event.get("score", 0.0) >= self.warning_thresh and self.confirmed_events:
+            last_event = self.confirmed_events[-1]
+            time_gap = frame_id - last_event["frame_end"]
+            
+            # If within active incident window (within nms_frames or ~2.5s)
+            if time_gap <= max(self.nms_frames, int(self.fps * 2.5)):
+                c_tracks = set(candidate_event.get("tracks", []))
+                last_tracks = set(last_event.get("tracks", []))
+                
+                # Check track sharing or spatial proximity
+                shares_track = bool(c_tracks & last_tracks)
+                from ..features.motion_features import compute_iou
+                spatial_overlap = False
+                if candidate_event.get("bbox") and last_event.get("bbox"):
+                    spatial_overlap = compute_iou(np.array(candidate_event["bbox"]), np.array(last_event["bbox"])) > 0.05
+                
+                if shares_track or spatial_overlap:
+                    # Merge and expand ongoing incident
+                    merged_tracks = sorted(list(last_tracks | c_tracks))
+                    last_event["tracks"] = merged_tracks
+                    last_event["num_vehicles"] = len(merged_tracks)
+                    last_event["frame_end"] = frame_id
+                    last_event["score"] = max(last_event["score"], candidate_event.get("score", 0.0))
+                    
+                    # Update union bbox
+                    cb = candidate_event.get("bbox")
+                    lb = last_event.get("bbox")
+                    if cb and lb:
+                        last_event["bbox"] = [
+                            float(min(lb[0], cb[0])),
+                            float(min(lb[1], cb[1])),
+                            float(max(lb[2], cb[2])),
+                            float(max(lb[3], cb[3])),
+                        ]
+                    self.last_alert_frame = frame_id
+                    return None
+
+        # Check if cooldown is active for a separate new event
         if (frame_id - self.last_alert_frame) < self.cooldown_frames:
             return None
 
@@ -69,8 +107,35 @@ class PostProcessor:
             # Pick highest score event in the window
             best_frame, best_score, best_raw = max(valid_frames, key=lambda x: x[1])
 
-            # Determine alert severity level
-            level = "CRITICAL" if best_score >= self.high_thresh else "WARNING"
+            # Accumulate all unique tracks in the detection window (combines multi-vehicle contacts)
+            all_window_tracks = set()
+            all_window_boxes = []
+            all_window_reasons = []
+            for item in valid_frames:
+                raw_e = item[2]
+                if raw_e:
+                    all_window_tracks.update(raw_e.get("tracks", []))
+                    if raw_e.get("bbox"):
+                        all_window_boxes.append(raw_e["bbox"])
+                    if raw_e.get("reasons"):
+                        all_window_reasons.append(raw_e["reasons"])
+
+            merged_tracks = sorted(list(all_window_tracks)) if all_window_tracks else best_raw.get("tracks", [])
+            num_vehicles = len(merged_tracks)
+
+            # Union bbox over the triggering window
+            if all_window_boxes:
+                union_box = [
+                    float(min(b[0] for b in all_window_boxes)),
+                    float(min(b[1] for b in all_window_boxes)),
+                    float(max(b[2] for b in all_window_boxes)),
+                    float(max(b[3] for b in all_window_boxes)),
+                ]
+            else:
+                union_box = best_raw.get("bbox", [])
+
+            # Determine alert severity level (boosted to CRITICAL if >= 3 vehicles or high score)
+            level = "CRITICAL" if (best_score >= self.high_thresh or num_vehicles >= 3) else "WARNING"
 
             # Check Temporal NMS with existing confirmed events
             if self.confirmed_events:
@@ -79,10 +144,14 @@ class PostProcessor:
                     # Update previous event window
                     last_event["frame_end"] = frame_id
                     last_event["score"] = max(last_event["score"], best_score)
+                    last_event["tracks"] = sorted(list(set(last_event["tracks"]) | set(merged_tracks)))
+                    last_event["num_vehicles"] = len(last_event["tracks"])
                     return None
 
             self.event_counter += 1
             timestamp = frame_id / max(self.fps, 1.0)
+
+            unique_reasons = " | ".join(list(dict.fromkeys(all_window_reasons))) if all_window_reasons else best_raw.get("reasons", "kinematic_anomaly")
 
             confirmed = {
                 "event_id": self.event_counter,
@@ -92,9 +161,10 @@ class PostProcessor:
                 "timestamp_str": f"{int(timestamp // 60):02d}:{int(timestamp % 60):02d}.{int((timestamp % 1) * 10):01d}",
                 "level": level,
                 "score": round(best_score, 3),
-                "tracks": best_raw.get("tracks", []),
-                "bbox": best_raw.get("bbox", []),
-                "reasons": best_raw.get("reasons", "kinematic_anomaly"),
+                "tracks": merged_tracks,
+                "num_vehicles": num_vehicles,
+                "bbox": union_box,
+                "reasons": unique_reasons,
             }
 
             self.confirmed_events.append(confirmed)
