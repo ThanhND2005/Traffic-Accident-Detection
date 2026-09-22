@@ -264,7 +264,7 @@ class TrajectoryManager:
         self,
         current_frame: Optional[int] = None,
         min_length: int = 10,
-        max_age: int = 30,
+        max_age: Optional[int] = 30,
     ) -> List[int]:
         """
         Lấy danh sách track ID đang active.
@@ -273,6 +273,7 @@ class TrajectoryManager:
             current_frame : frame hiện tại (mặc định dùng self.current_frame).
             min_length    : số frame tối thiểu có trong lịch sử.
             max_age       : track phải được thấy trong 'max_age' frame gần nhất.
+                            Nếu None, không lọc theo max_age (lấy tất cả track >= min_length).
 
         Returns:
             List[int] — danh sách track ID hợp lệ.
@@ -282,12 +283,18 @@ class TrajectoryManager:
 
         active = []
         for tid, history in self.tracks.items():
-            if (
-                len(history) >= min_length
-                and (current_frame - self.last_seen[tid]) <= max_age
-            ):
-                active.append(tid)
+            if len(history) < min_length:
+                continue
+            if max_age is not None and (current_frame - self.last_seen[tid]) > max_age:
+                continue
+            active.append(tid)
         return active
+
+    def get_all_tracks(self, min_length: int = 1) -> List[int]:
+        """
+        Lấy danh sách tất cả track ID có độ dài >= min_length đã từng xuất hiện.
+        """
+        return [tid for tid, h in self.tracks.items() if len(h) >= min_length]
 
     def get_interacting_pairs(
         self,

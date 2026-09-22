@@ -3,6 +3,9 @@
 # ==============================================================================
 datasets/
 data/
+results/
+demo/sample_videos/*.mp4
+demo/sample_videos/*.avi
 *.zip
 *.tar
 *.tar.gz
