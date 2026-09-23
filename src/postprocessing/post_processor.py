@@ -63,9 +63,10 @@ class PostProcessor:
         if candidate_event is not None and candidate_event.get("score", 0.0) >= self.warning_thresh and self.confirmed_events:
             last_event = self.confirmed_events[-1]
             time_gap = frame_id - last_event["frame_end"]
+            event_duration = frame_id - last_event["frame_start"]
             
-            # If within active incident window (within nms_frames or ~2.5s)
-            if time_gap <= max(self.nms_frames, int(self.fps * 2.5)):
+            # If within active incident window and not exceeding max event duration (e.g. max 5s)
+            if time_gap <= max(self.nms_frames, int(self.fps * 2.0)) and event_duration <= int(self.fps * 5.0):
                 c_tracks = set(candidate_event.get("tracks", []))
                 last_tracks = set(last_event.get("tracks", []))
                 
