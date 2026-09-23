@@ -15,14 +15,14 @@ class RuleBasedAccidentDetector:
 
     def __init__(
         self,
-        sudden_decel_thresh: float = 4.0,
-        direction_change_thresh: float = 40.0,
-        iou_overlap_thresh: float = 0.12,
-        distance_decrease_rate: float = 0.40,
+        sudden_decel_thresh: float = 2.0,
+        direction_change_thresh: float = 25.0,
+        iou_overlap_thresh: float = 0.05,
+        distance_decrease_rate: float = 0.25,
         min_track_length: int = 4,
-        alert_threshold: float = 0.50,
-        min_speed_for_turn: float = 3.0,
-        decel_drop_ratio: float = 0.50,
+        alert_threshold: float = 0.30,
+        min_speed_for_turn: float = 1.5,
+        decel_drop_ratio: float = 0.30,
         **kwargs,
     ):
         self.sudden_decel_thresh = sudden_decel_thresh
@@ -60,17 +60,21 @@ class RuleBasedAccidentDetector:
         speed_a_prev = np.max(speed_a[-5:-1]) if len(speed_a) > 1 else speed_a_cur
         speed_b_prev = np.max(speed_b[-5:-1]) if len(speed_b) > 1 else speed_b_cur
 
-        # Rule 1: Giảm tốc đột ngột (Sudden Deceleration / Speed Collapse)
+        # Cả 2 xe đứng yên từ trước -> bỏ qua (xe đỗ hoặc dừng đèn đỏ cạnh nhau)
+        if max(speed_a_prev, speed_b_prev) < 1.5 and max(speed_a_cur, speed_b_cur) < 1.0:
+            return None
+
+        # Rule 1: Giảm tốc đột ngột (Sudden Deceleration)
         drop_a = speed_a_prev - speed_a_cur
         drop_b = speed_b_prev - speed_b_cur
         decel_a_mag = feat_a["accel_mag"][-1] if len(feat_a.get("accel_mag", [])) > 0 else 0.0
         decel_b_mag = feat_b["accel_mag"][-1] if len(feat_b.get("accel_mag", [])) > 0 else 0.0
 
         decel_triggered = False
-        if (speed_a_prev >= 3.5 and (drop_a >= self.sudden_decel_thresh or (drop_a / max(speed_a_prev, 1e-3)) >= self.decel_drop_ratio)) or (decel_a_mag > self.sudden_decel_thresh * 1.5):
+        if (speed_a_prev >= 2.2 and (drop_a >= self.sudden_decel_thresh or (drop_a / max(speed_a_prev, 1e-3)) >= self.decel_drop_ratio)) or (decel_a_mag > self.sudden_decel_thresh * 1.5):
             decel_triggered = True
             reasons.append(f"decel_a({speed_a_prev:.1f}->{speed_a_cur:.1f})")
-        if (speed_b_prev >= 3.5 and (drop_b >= self.sudden_decel_thresh or (drop_b / max(speed_b_prev, 1e-3)) >= self.decel_drop_ratio)) or (decel_b_mag > self.sudden_decel_thresh * 1.5):
+        if (speed_b_prev >= 2.2 and (drop_b >= self.sudden_decel_thresh or (drop_b / max(speed_b_prev, 1e-3)) >= self.decel_drop_ratio)) or (decel_b_mag > self.sudden_decel_thresh * 1.5):
             decel_triggered = True
             reasons.append(f"decel_b({speed_b_prev:.1f}->{speed_b_cur:.1f})")
 
@@ -78,8 +82,7 @@ class RuleBasedAccidentDetector:
             rules_triggered += 1
             rule_score += 0.35
 
-        # Rule 2: Đổi hướng đột ngột (Speed-Gated Heading Deviation)
-        # Chỉ xét nếu tốc độ di chuyển trước đó >= min_speed_for_turn để tránh nhiễu rung lắc khi xe dừng
+        # Rule 2: Đổi hướng đột ngột (Speed-Gated Heading Deviation / Spin do va chạm)
         d_angle_a = feat_a["delta_angles"][-1] if len(feat_a.get("delta_angles", [])) > 0 else 0.0
         d_angle_b = feat_b["delta_angles"][-1] if len(feat_b.get("delta_angles", [])) > 0 else 0.0
         turn_triggered = False
@@ -95,51 +98,64 @@ class RuleBasedAccidentDetector:
             rules_triggered += 1
             rule_score += 0.30
 
-        # Rule 3: Bounding box tiếp xúc / chồng lấn (Contact & IoU Overlap)
+        # Rule 3: Speed Collapse — xe đang chạy nhanh đột ngột dừng hẳn
+        speed_collapse = False
+        if speed_a_prev >= 2.5 and speed_a_cur < 0.6:
+            speed_collapse = True
+            reasons.append(f"collapse_a({speed_a_prev:.1f}->0)")
+        if speed_b_prev >= 2.5 and speed_b_cur < 0.6:
+            speed_collapse = True
+            reasons.append(f"collapse_b({speed_b_prev:.1f}->0)")
+        if speed_collapse:
+            rules_triggered += 1
+            rule_score += 0.30
+
+        # Rule 4: Bounding box tiếp xúc / chồng lấn (Contact & IoU Overlap)
         box_a = bboxes_a[-1]
         box_b = bboxes_b[-1]
         from ..features.motion_features import compute_iou
         iou = compute_iou(box_a, box_b)
+        c_a_now = (box_a[:2] + box_a[2:]) / 2.0
+        c_b_now = (box_b[:2] + box_b[2:]) / 2.0
+        dist_now = float(np.linalg.norm(c_a_now - c_b_now))
         
-        if iou >= self.iou_overlap_thresh:
+        contact_triggered = False
+        if iou >= 0.12 and max(speed_a_prev, speed_b_prev) >= 1.5:
+            contact_triggered = True
             rules_triggered += 1
-            rule_score += 0.35
+            rule_score += 0.40
             reasons.append(f"iou_overlap({iou:.2f})")
-        elif iou >= 0.05 and (decel_triggered or turn_triggered):
+        elif iou >= 0.05 and (decel_triggered or turn_triggered or speed_collapse):
+            contact_triggered = True
             rules_triggered += 1
-            rule_score += 0.20
+            rule_score += 0.25
             reasons.append(f"contact({iou:.2f})")
 
-        # Rule 4: Tiến lại gần với tốc độ cao (Rapid Convergence)
+        # Rule 5: Tiến lại gần với tốc độ cao (Rapid Convergence)
         k = min(5, len(bboxes_a), len(bboxes_b))
         if k >= 3:
-            c_a_now = (box_a[:2] + box_a[2:]) / 2.0
-            c_b_now = (box_b[:2] + box_b[2:]) / 2.0
-            dist_now = np.linalg.norm(c_a_now - c_b_now)
-
             c_a_prev = (bboxes_a[-k][:2] + bboxes_a[-k][2:]) / 2.0
             c_b_prev = (bboxes_b[-k][:2] + bboxes_b[-k][2:]) / 2.0
-            dist_prev = np.linalg.norm(c_a_prev - c_b_prev)
+            dist_prev = float(np.linalg.norm(c_a_prev - c_b_prev))
 
             if dist_prev > 1.0:
                 rel_drop = (dist_prev - dist_now) / dist_prev
-                if rel_drop >= self.distance_decrease_rate and (speed_a_prev > 3.0 or speed_b_prev > 3.0):
+                if rel_drop >= self.distance_decrease_rate and max(speed_a_prev, speed_b_prev) >= 2.5:
                     rules_triggered += 1
                     rule_score += 0.25
-                    reasons.append(f"rapid_convergence({rel_drop * 100:.0f}%)")
+                    reasons.append(f"converge({rel_drop * 100:.0f}%)")
 
-        if rules_triggered == 0:
+        # Điều kiện bắt buộc cho va chạm 2 xe:
+        # PHẢI có va chạm tiếp xúc (contact/iou) HOẶC khoảng cách rất gần (<70px) kèm giảm tốc/sụp đổ tốc độ
+        has_physical_contact = contact_triggered or (dist_now < 70.0 and (decel_triggered or speed_collapse))
+        if not has_physical_contact:
             return None
 
-        # Scaling and non-linear boost for multi-rule concurrence
-        if rules_triggered >= 3:
-            score = rule_score * 1.3
-        elif rules_triggered == 2:
-            score = rule_score * 1.15
-        else:
-            score = rule_score
+        # Yêu cầu tối thiểu 2 dấu hiệu vi phạm để loại bỏ nhiễu thao tác lái thông thường
+        if rules_triggered < 2:
+            return None
 
-        score = float(np.clip(score, 0.0, 1.0))
+        score = float(np.clip(rule_score * 1.15, 0.0, 1.0))
         if score < self.alert_threshold:
             return None
 
@@ -290,28 +306,35 @@ class RuleBasedAccidentDetector:
         d_angle = feat["delta_angles"][-1] if len(feat.get("delta_angles", [])) > 0 else 0.0
         area_ratio = feat["area_ratios"][-1] if len(feat.get("area_ratios", [])) > 0 else 1.0
 
-        if (speed_prev >= 4.0 and drop >= self.sudden_decel_thresh) or decel > self.sudden_decel_thresh * 1.5:
-            rule_count += 1
-            reasons.append(f"solo_sudden_decel({decel:.1f})")
+        # Cần tốc độ ban đầu đáng kể (>= 3.0 px/frame)
+        if speed_prev < 3.0:
+            return None
 
-        if speed_prev >= self.min_speed_for_turn and d_angle > self.direction_change_thresh * 1.2:
+        reasons = []
+        rule_count = 0
+        if drop >= 3.0 and speed_cur < 0.6:
             rule_count += 1
-            reasons.append(f"solo_spin({d_angle:.1f}°)")
+            reasons.append(f"solo_stop({speed_prev:.1f}->0)")
 
-        if area_ratio < 0.4 or area_ratio > 2.5:  # Sudden aspect change (vehicle flipped/fallen)
+        # Spin mạnh do mất lái / va đập (> 55 độ)
+        if d_angle > 55.0:
             rule_count += 1
-            reasons.append(f"deformation_or_fall(ratio={area_ratio:.2f})")
+            reasons.append(f"solo_spin({d_angle:.0f}°)")
 
+        # Lật xe / ngã xe (aspect ratio thay đổi bất thường)
+        if area_ratio < 0.35 or area_ratio > 2.8:
+            rule_count += 1
+            reasons.append(f"solo_fall(ratio={area_ratio:.2f})")
+
+        # Phải thỏa mãn ít nhất 2 điều kiện (ngã + dừng, hoặc xoay gắt + dừng hẳn)
         if rule_count >= 2:
-            score = float(np.clip(rule_count * 0.35, 0.0, 1.0))
-            if score >= self.alert_threshold:
-                return {
-                    "frame_id": current_frame,
-                    "tracks": [tid],
-                    "num_vehicles": 1,
-                    "score": score,
-                    "rules_triggered": rule_count,
-                    "reasons": " + ".join(reasons),
-                    "bbox": bbox.tolist(),
-                }
+            return {
+                "frame_id": current_frame,
+                "tracks": [tid],
+                "num_vehicles": 1,
+                "score": 0.75,
+                "rules_triggered": rule_count,
+                "reasons": " + ".join(reasons),
+                "bbox": bbox.tolist(),
+            }
         return None

@@ -34,11 +34,11 @@ features:
 classifiers:
   rule_based:
     enabled: true
-    sudden_decel_thresh: 15.0      # Pixel/frame^2 threshold for abnormal sudden stop
-    direction_change_thresh: 45.0  # Degrees threshold for abnormal trajectory angle change
-    iou_overlap_thresh: 0.15       # Sudden bounding box overlap between two vehicles
-    distance_decrease_rate: 0.50   # Proportional distance reduction between pairs within 5 frames
-    alert_threshold: 0.50          # Combined rule score required to trigger an alert
+    sudden_decel_thresh: 2.0       # Pixel/frame^2 threshold for abnormal sudden stop (lowered from 15.0)
+    direction_change_thresh: 25.0  # Degrees threshold for abnormal trajectory angle change (lowered from 45.0)
+    iou_overlap_thresh: 0.05       # Sudden bounding box overlap between two vehicles (lowered from 0.15)
+    distance_decrease_rate: 0.25   # Proportional distance reduction between pairs within 5 frames (lowered from 0.50)
+    alert_threshold: 0.30          # Combined rule score required to trigger an alert (lowered from 0.50)
 
   lstm:
     enabled: false                 # Set to true once weights are trained
@@ -66,9 +66,9 @@ fusion:
   final_threshold: 0.60
 
 postprocessing:
-  temporal_window: 5              # Number of frames in sliding window
-  min_consecutive_alerts: 3       # Require at least 3/5 frames positive to confirm alert
-  nms_temporal_seconds: 2.0       # Merge alerts occurring within 2 seconds
-  cooldown_seconds: 5.0           # Cooldown window to prevent repeating alerts
-  high_confidence_thresh: 0.80    # 🔴 Critical Accident Alert
-  warning_thresh: 0.50            # 🟡 Potential Incident Warning
+  temporal_window: 10             # Number of frames in sliding window (widened from 5)
+  min_consecutive_alerts: 2       # Require at least 2/10 frames positive to confirm alert (lowered from 3)
+  nms_temporal_seconds: 3.0       # Merge alerts occurring within 3 seconds (widened from 2)
+  cooldown_seconds: 2.0           # Cooldown window to prevent repeating alerts (lowered from 5)
+  high_confidence_thresh: 0.70    # 🔴 Critical Accident Alert (lowered from 0.80)
+  warning_thresh: 0.30            # 🟡 Potential Incident Warning (lowered from 0.50)
