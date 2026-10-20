@@ -104,7 +104,10 @@ class TrajectoryAccidentClassifier(nn.Module):
     @classmethod
     def load_from_checkpoint(cls, path: str, device: str = "cpu") -> "TrajectoryAccidentClassifier":
         """Load model from saved checkpoint."""
-        checkpoint = torch.load(path, map_location=device)
+        try:
+            checkpoint = torch.load(path, map_location=device, weights_only=False)
+        except TypeError:
+            checkpoint = torch.load(path, map_location=device)
         config = checkpoint.get("config", {"input_dim": 15, "hidden_dim": 64, "num_layers": 2})
         model = cls(**config)
         model.load_state_dict(checkpoint["state_dict"])

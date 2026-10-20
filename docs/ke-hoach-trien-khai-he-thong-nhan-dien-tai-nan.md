@@ -104,7 +104,7 @@ gantt
     Rule-based baseline             :a3, 2026-09-15, 7d
 
     section Giai đoạn 2: Fine-tune & Nâng cấp
-    Thu thập & gán nhãn dữ liệu VN  :b1, 2026-09-22, 14d
+    Chuẩn bị data mẫu & tổ chức Drive :b1, 2026-09-22, 7d
     Fine-tune YOLO11                :b2, 2026-09-29, 7d
 
     section Giai đoạn 3: Deep Learning Pipeline
@@ -338,101 +338,267 @@ gantt
 
 ---
 
-### Tuần 4-5 (22/09 – 05/10): Thu Thập & Gán Nhãn Dữ Liệu VN + Fine-tune YOLO11
+### Tuần 4-5 (22/09 – 05/10): Khai Thác Data Mẫu Sẵn Có + Tổ Chức Google Drive + Fine-tune YOLO11
 
-> **Mục tiêu:** Có dataset giao thông VN gán nhãn, YOLO11 fine-tuned nhận diện tốt xe máy + giao thông hỗn hợp.
+> **Mục tiêu:** Tối ưu hóa thời gian và nguồn lực bằng cách tận dụng 100% các bộ dataset mẫu mở đã gán nhãn sẵn (không tốn thời gian cắt ghép video hay gán nhãn thủ công), tổ chức cấu trúc thư mục Google Drive khoa học, chuẩn hóa file cấu hình và fine-tune YOLO11s nhận diện tốt phương tiện (đặc biệt xe máy) trong giao thông Việt Nam.
 
-#### Tuần 4: Thu thập & gán nhãn dữ liệu
+> [!IMPORTANT]
+> **Chiến lược tối ưu hóa thời gian:**
+> Nhóm **không cần thực hiện gán nhãn thủ công (manual labeling)** hay **ngồi cắt ghép hàng trăm video bằng tay**. Thay vào đó, toàn bộ dữ liệu huấn luyện và kiểm thử được khai thác trực tiếp từ các dataset cộng đồng mã nguồn mở đã chuẩn hóa sẵn format YOLO và các benchmark video tai nạn CCTV đã cắt sẵn mốc thời gian.
 
-**Thu thập video giao thông VN:**
-- [ ] Nguồn video:
-  - Camera giám sát thực tế (nếu có quyền truy cập)
-  - YouTube: search "camera giao thông Việt Nam", "tai nạn giao thông camera", "CCTV traffic Vietnam"
-  - Các kênh báo chí: VTV, VnExpress, Tuổi Trẻ thường đăng clip tai nạn từ camera
-- [ ] Mục tiêu thu thập:
-  - **50-100 clip tai nạn** (mỗi clip 10-30 giây)
-  - **200-300 clip bình thường** (đa dạng: ban ngày/đêm, mưa/nắng, đông/vắng)
-  - Ưu tiên: giao lộ, đường 2 chiều, có xe máy mật độ cao
+---
 
-**Gán nhãn detection (bounding box):**
-- [ ] Sử dụng **Roboflow** (free tier: 10,000 ảnh) hoặc **CVAT** (open-source, chạy local):
-  - Gán nhãn 6 class: `car`, `motorcycle`, `truck`, `bus`, `person`, `bicycle`
-  - Mục tiêu: **2,000-3,000 ảnh** gán nhãn (trích ~10 frame/clip × 200+ clip)
-- [ ] Augmentation trong Roboflow:
-  - Flip ngang
-  - Brightness ±15%
-  - Blur nhẹ (simulate camera chất lượng thấp)
-  - Crop ±10%
-- [ ] Export format YOLO (txt annotation)
+#### Tuần 4: Khai Thác Data Mẫu Sẵn Có & Thiết Lập Cấu Trúc Google Drive
 
-**Gán nhãn accident (video-level):**
-- [ ] Label đơn giản cho mỗi clip: `accident` / `normal`
-- [ ] Với clip accident: ghi thêm frame bắt đầu + frame kết thúc sự kiện
-- [ ] Lưu vào CSV: `video_name, label, start_frame, end_frame, description`
+##### 1. Danh mục các bộ Dataset mẫu có sẵn (Pre-annotated & Ready-to-use)
 
-> [!TIP]
-> **Mẹo gán nhãn hiệu quả:**
-> - Dùng Roboflow's Smart Labeling (auto-assist) để tăng tốc gán bbox
-> - Chia nhỏ công việc: mỗi ngày gán ~100-150 ảnh (30-45 phút)
-> - Ưu tiên gán nhãn `motorcycle` kỹ vì đây là class quan trọng nhất cho VN
+Nhóm chia dữ liệu thành 2 nhóm phục vụ 2 mục đích riêng biệt:
 
-#### Tuần 5: Fine-tune YOLO11
+###### A. Dữ liệu huấn luyện Object Detection (Phục vụ Fine-tune YOLO11 ở Tuần 5)
 
-**Chuẩn bị data fine-tune:**
-- [ ] Kết hợp dữ liệu:
-  - Dữ liệu VN tự gán nhãn (2,000-3,000 ảnh)
-  - Subset từ COCO (chọn ảnh có class vehicle — ~5,000 ảnh)
-  - Tổng: ~7,000-8,000 ảnh
-- [ ] Chia train/val: 85% / 15%
-- [ ] Tạo file `data.yaml`:
-  ```yaml
-  path: /content/drive/MyDrive/accident_detection/datasets/vn_traffic
-  train: images/train
-  val: images/val
-  nc: 6
-  names: ['car', 'motorcycle', 'truck', 'bus', 'person', 'bicycle']
-  ```
+| Tên Dataset mẫu | Nguồn & Cách lấy | Số lượng & Format | Đặc điểm nổi bật |
+|---|---|---|---|
+| **Roboflow VN Traffic** *(Khuyến nghị số 1)* | [Roboflow Universe](https://universe.roboflow.com/) (Tìm keywords: `vietnamese-traffic-vehicles`, `vietnam-traffic-participants`, `traffic-in-vietnam`) | ~2,500 – 4,500 ảnh<br>Format: YOLOv8/YOLO11 txt | Chụp trực tiếp từ camera đường phố/CCTV tại Hà Nội, TP.HCM. Đã gán nhãn chuẩn: `motorcycle`, `car`, `bus`, `truck`, `bicycle`, `person`. Tải 1-click hoặc qua API. |
+| **UIT / BKAI Traffic Dataset** | Cuộc thi AI Challenge VN / Kaggle (`vietnam-traffic-detection`) | ~2,000 – 3,000 ảnh<br>Format: YOLO txt | Ảnh trích từ camera giao thông ngã tư góc cao (high-angle CCTV). Mật độ xe máy cực dày đặc, rất sát với bối cảnh camera giám sát giao thông thực tế. |
+| **VisDrone Vehicle Subset** | [VisDrone](https://github.com/VisDrone/VisDrone-Dataset) hoặc Roboflow `visdrone-detection` | ~3,000 ảnh (lọc xe cộ)<br>Format: YOLO txt | Camera nhìn từ trên cao xuống. Cực kỳ hiệu quả để model học nhận diện các vật thể xe máy/xe đạp/người đi bộ kích thước nhỏ, bị che khuất một phần. |
+| **COCO Vehicle Filter** | Trích xuất tự động từ COCO train2017 qua script | ~2,000 ảnh mẫu | Giúp mô hình giữ vững khả năng nhận diện các loại xe hơi, xe tải tiêu chuẩn (tránh hiện tượng catastrophic forgetting). |
 
-**Training trên Kaggle (ưu tiên) + Colab:**
-- [ ] Config training:
-  ```python
-  from ultralytics import YOLO
+###### B. Dữ liệu Video Tai Nạn & Tình huống giao thông (Phục vụ Tuần 6-7 & Demo — KHÔNG cần cắt ghép)
 
-  model = YOLO("yolo11s.pt")  # pretrained COCO
+| Tên Dataset video | Nguồn tải | Đặc điểm dữ liệu | Cách sử dụng trực tiếp |
+|---|---|---|---|
+| **CADP** *(Car Accident Detection and Prediction)* | [Roboflow CADP](https://universe.roboflow.com/yassine-pzpt7/cadp) hoặc GitHub CADP | **1,416 clip CCTV cố định** (fixed CCTV). Đã cắt sẵn thành từng clip sự kiện ngắn 10–30 giây. | Có sẵn metadata mốc thời gian va chạm `[start_frame, end_frame]`. Không cần cắt ghép, dùng trực tiếp để benchmark và trích xuất ROI. |
+| **CCD** *(Car Crash Dataset)* | [Kaggle - Car Crash Dataset (CCD)](https://www.kaggle.com/datasets/asmjamil/car-crash-dataset-ccd) | **~4,500 video clip ngắn**, chuẩn hóa đều **50 frames (~5 giây/clip)**. | Đã phân sẵn 2 thư mục `Crash` (tai nạn) và `Normal` (bình thường), có timestamp mốc va chạm. Nạp thẳng vào huấn luyện classifier. |
+| **VN CCTV Quick Samples** | Tải trực tiếp 5–10 clip YouTube/CCTV công cộng | Mỗi clip 15–30 giây | Dùng riêng cho việc chạy thử nghiệm trực quan (sanity check) và làm video demo kết quả cuối cùng. |
 
-  results = model.train(
-      data="data.yaml",
-      epochs=100,           # target: 80-100 epochs
-      imgsz=640,
-      batch=16,             # điều chỉnh theo VRAM, T4 thường chạy 16 ok
-      patience=15,          # early stopping
-      optimizer="AdamW",
-      lr0=0.001,            # lower LR vì fine-tune
-      lrf=0.01,
-      warmup_epochs=3,
-      save_period=10,       # save checkpoint mỗi 10 epoch
-      project="/content/drive/MyDrive/accident_detection/checkpoints",
-      name="yolo11s_vn_traffic",
-      resume=True,          # ← QUAN TRỌNG: resume khi session bị ngắt
-  )
-  ```
-- [ ] Chiến lược chia session training:
-  - Kaggle session 1 (8-10h): epoch 1-40
-  - Kaggle session 2 (8-10h): epoch 41-80 (resume từ checkpoint)
-  - Colab backup: epoch 81-100 nếu cần
+---
 
-**Đánh giá sau fine-tune:**
-- [ ] So sánh mAP@0.5 trên val set:
-  - YOLO11s pretrained (COCO gốc) → trên video VN
-  - YOLO11s fine-tuned → trên video VN
-- [ ] Kiểm tra đặc biệt: detection motorcycle ở mật độ cao, xe nhỏ/xa camera
-- [ ] Chạy lại baseline rule-based với model detection mới → so sánh metrics
+##### 2. Tổ chức Cấu Trúc Thư Mục trên Google Drive
+
+Để đảm bảo quy trình làm việc giữa Google Colab, Kaggle Notebooks và máy local đồng bộ 100%, không bị mất checkpoint khi hết phiên làm việc, toàn bộ dự án trên Google Drive cần được tổ chức theo cây thư mục sau:
+
+```
+MyDrive/
+└── accident_detection/
+    ├── configs/                               ← File cấu hình toàn dự án
+    │   ├── data.yaml                          ← Cấu hình dataset YOLO (trỏ đường dẫn Drive)
+    │   ├── bytetrack_custom.yaml              ← Tham số tinh chỉnh tracking ByteTrack
+    │   └── pipeline_config.yaml               ← Cấu hình ngưỡng cảnh báo và tích hợp
+    │
+    ├── datasets/                              ← Kho dữ liệu tập trung
+    │   ├── detection/                         ← Dữ liệu phục vụ fine-tune YOLO11 (Tuần 5)
+    │   │   ├── raw_zips/                      ← Lưu các file zip tải về từ Roboflow/Kaggle (dự phòng)
+    │   │   └── vn_traffic_yolo/               ← Dataset chính đã giải nén & map nhãn
+    │   │       ├── images/
+    │   │       │   ├── train/                 ← 3,000 – 4,000 ảnh huấn luyện
+    │   │       │   └── val/                   ← 500 – 800 ảnh kiểm định
+    │   │       ├── labels/
+    │   │       │   ├── train/                 ← File *.txt tọa độ YOLO tương ứng
+    │   │       │   └── val/
+    │   │       └── data.yaml                  ← Bản copy cục bộ của config dataset
+    │   │
+    │   ├── video_accidents/                   ← Video clip phục vụ phân loại va chạm & demo
+    │   │   ├── cadp_cctv/                     ← 1,416 video CCTV cắt sẵn từ CADP
+    │   │   │   ├── clips/                     ← Các file video .mp4
+    │   │   │   └── annotations.json           ← Metadata thời gian xảy ra tai nạn
+    │   │   ├── ccd_dashcam/                   ← Video ngắn 50-frame từ CCD
+    │   │   │   ├── accident/
+    │   │   │   └── normal/
+    │   │   └── vn_cctv_samples/               ← 5–10 clip thực tế VN làm bài test demo
+    │   │
+    │   └── extracted_features/                ← Dành riêng cho Tuần 6 (chuỗi trajectory)
+    │       ├── train/
+    │       └── val/
+    │
+    ├── checkpoints/                           ← Nơi lưu trữ weights (sống còn khi train Colab/Kaggle)
+    │   ├── pretrained/                        ← Model gốc: yolo11s.pt, x3d_s.pt
+    │   ├── yolo11s_vn_traffic/                ← Lưu best.pt, last.pt sau khi fine-tune Tuần 5
+    │   ├── lstm_trajectory/                   ← Lưu trọng số mạng LSTM ở Tuần 6
+    │   └── x3d_fusion/                        ← Lưu trọng số mạng X3D & Fusion ở Tuần 7
+    │
+    ├── runs/                                  ← Logs tensorboard và biểu đồ training
+    └── demo_outputs/                          ← Video kết quả sau khi pipeline xử lý
+```
+
+---
+
+##### 3. Quy trình Tự Động Hóa Tải & Chuẩn Hóa Dữ Liệu trên Colab
+
+Không cần tải dữ liệu về máy tính cá nhân rồi tải lên Drive (rất lâu và tốn băng thông). Chạy trực tiếp các bước sau trên Google Colab để tải và chuẩn hóa thẳng vào Drive trong vòng **15–20 phút**:
+
+###### Bước 1: Mount Google Drive & Khởi tạo cấu trúc thư mục
+```python
+from google.colab import drive
+import os
+
+drive.mount('/content/drive')
+BASE_DIR = "/content/drive/MyDrive/accident_detection"
+
+# Tự động tạo cây thư mục
+subdirs = [
+    "configs",
+    "datasets/detection/raw_zips",
+    "datasets/detection/vn_traffic_yolo/images/train",
+    "datasets/detection/vn_traffic_yolo/images/val",
+    "datasets/detection/vn_traffic_yolo/labels/train",
+    "datasets/detection/vn_traffic_yolo/labels/val",
+    "datasets/video_accidents/cadp_cctv",
+    "datasets/video_accidents/ccd_dashcam",
+    "datasets/video_accidents/vn_cctv_samples",
+    "datasets/extracted_features",
+    "checkpoints/pretrained",
+    "checkpoints/yolo11s_vn_traffic",
+    "runs",
+    "demo_outputs"
+]
+for d in subdirs:
+    os.makedirs(os.path.join(BASE_DIR, d), exist_ok=True)
+print("✅ Cấu trúc thư mục Drive đã được khởi tạo sẵn sàng!")
+```
+
+###### Bước 2: Tải thẳng Dataset mẫu từ Roboflow Universe về Drive
+```python
+!pip install -q roboflow
+from roboflow import Roboflow
+
+# Điền API Key miễn phí từ tài khoản Roboflow của bạn
+rf = Roboflow(api_key="YOUR_ROBOFLOW_API_KEY")
+
+# Tải thẳng vào thư mục Drive (ví dụ dataset Vietnamese Traffic)
+project = rf.workspace("roboflow-100").project("vietnamese-traffic-vehicles")
+version = project.version(1)
+dataset = version.download("yolov11", location=f"{BASE_DIR}/datasets/detection/vn_traffic_yolo")
+print("✅ Tải xong dataset mẫu về Google Drive!")
+```
+
+###### Bước 3: Đồng bộ và Map Class Nhãn tự động (`remap_classes.py`)
+Mục tiêu là đưa tất cả các dataset về đúng **6 class chuẩn** của dự án:
+`0: car, 1: motorcycle, 2: truck, 3: bus, 4: person, 5: bicycle`
+
+```python
+import glob
+
+# Định nghĩa bảng map từ ID class cũ sang ID chuẩn của dự án
+# Ví dụ: dataset nguồn có class 0: motorbike -> map về 1 (motorcycle)
+CLASS_REMAP = {
+    0: 1,  # motorbike -> motorcycle
+    1: 0,  # car -> car
+    2: 2,  # truck -> truck
+    3: 3,  # bus -> bus
+    4: 4,  # person -> person
+    5: 5   # bicycle -> bicycle
+}
+
+label_dirs = [
+    f"{BASE_DIR}/datasets/detection/vn_traffic_yolo/labels/train",
+    f"{BASE_DIR}/datasets/detection/vn_traffic_yolo/labels/val"
+]
+
+for ldir in label_dirs:
+    for txt_file in glob.glob(f"{ldir}/*.txt"):
+        new_lines = []
+        with open(txt_file, "r") as f:
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) >= 5:
+                    old_cls = int(parts[0])
+                    if old_cls in CLASS_REMAP:
+                        parts[0] = str(CLASS_REMAP[old_cls])
+                        new_lines.append(" ".join(parts))
+        with open(txt_file, "w") as f:
+            f.write("\n".join(new_lines) + ("\n" if new_lines else ""))
+
+print("✅ Đã chuẩn hóa toàn bộ nhãn về 6 class quy chuẩn!")
+```
+
+###### Bước 4: Kiểm tra tính toàn vẹn (Sanity Check) & Tạo file `data.yaml`
+```python
+import os, yaml
+
+DATA_ROOT = f"{BASE_DIR}/datasets/detection/vn_traffic_yolo"
+train_imgs = len([f for f in os.listdir(f"{DATA_ROOT}/images/train") if f.endswith(('.jpg', '.png', '.jpeg'))])
+val_imgs = len([f for f in os.listdir(f"{DATA_ROOT}/images/val") if f.endswith(('.jpg', '.png', '.jpeg'))])
+
+print(f"📊 Thống kê dataset: {train_imgs} ảnh train | {val_imgs} ảnh val")
+
+# Tạo file data.yaml chuẩn trỏ tuyệt đối vào Drive
+data_yaml_cfg = {
+    'path': DATA_ROOT,
+    'train': 'images/train',
+    'val': 'images/val',
+    'nc': 6,
+    'names': ['car', 'motorcycle', 'truck', 'bus', 'person', 'bicycle']
+}
+
+yaml_save_path = f"{BASE_DIR}/configs/data.yaml"
+with open(yaml_save_path, 'w') as f:
+    yaml.dump(data_yaml_cfg, f, default_flow_style=False)
+
+# Copy 1 bản vào ngay thư mục dataset để YOLO tự nhận diện
+with open(f"{DATA_ROOT}/data.yaml", 'w') as f:
+    yaml.dump(data_yaml_cfg, f, default_flow_style=False)
+
+print(f"✅ Đã tạo cấu hình data.yaml tại: {yaml_save_path}")
+```
+
+---
+
+#### Tuần 5: Fine-tune YOLO11 Trên Kaggle / Colab
+
+Khi toàn bộ dữ liệu mẫu đã được tải, làm sạch và tổ chức chuẩn hóa trên Google Drive ở Tuần 4, tuần 5 sẽ tập trung hoàn toàn vào việc huấn luyện mô hình Object Detection mà không gặp trở ngại về dữ liệu.
+
+##### 1. Kế hoạch Training YOLO11s
+
+- **Model khởi tạo:** `yolo11s.pt` (Small — cân bằng tối ưu giữa FPS và khả năng bắt xe máy nhỏ từ camera góc cao).
+- **Môi trường:** Ưu tiên Kaggle GPU (T4 x 2 hoặc P100 — 30h quota ổn định) hoặc Colab GPU T4.
+- **Config huấn luyện:**
+
+```python
+from ultralytics import YOLO
+
+# Khởi tạo mô hình từ pretrained COCO
+model = YOLO("yolo11s.pt")
+
+# Huấn luyện fine-tune với dữ liệu giao thông VN
+results = model.train(
+    data="/content/drive/MyDrive/accident_detection/configs/data.yaml",
+    epochs=80,                               # 60-80 epochs là đủ để hội tụ tốt
+    imgsz=640,                               # Độ phân giải 640x640 chuẩn
+    batch=16,                                # Phù hợp GPU T4 16GB
+    patience=15,                             # Dừng sớm nếu không cải thiện sau 15 epochs
+    optimizer="AdamW",
+    lr0=0.001,                               # Learning rate nhỏ để fine-tune không phá vỡ weights
+    lrf=0.01,
+    warmup_epochs=3,
+    save_period=10,                          # Tự động lưu checkpoint mỗi 10 epoch vào Drive
+    project="/content/drive/MyDrive/accident_detection/checkpoints",
+    name="yolo11s_vn_traffic",
+    resume=True                              # Tự động resume tiếp tục nếu phiên bị ngắt
+)
+```
+
+##### 2. Chiến lược chia session training (đối phó ngắt quãng GPU)
+- **Session 1 (Kaggle ~6 giờ):** Chạy từ epoch 1 đến epoch 40.
+- **Session 2 (Kaggle ~6 giờ):** Khởi động lại session mới, nạp `resume=True` để chạy từ epoch 41 đến 80.
+- Checkpoint `best.pt` và `last.pt` được ghi trực tiếp vào Google Drive nên hoàn toàn không sợ mất tiến độ khi hết phiên.
+
+##### 3. Đánh giá & Nghiệm thu sau Fine-tune
+- [ ] Đo đạc **mAP@0.5** trên tập validation:
+  - So sánh `yolo11s.pt` gốc (COCO) vs `yolo11s_vn_best.pt` (sau fine-tune).
+  - Mục tiêu: Class `motorcycle` và `person` cải thiện mAP@0.5 từ **+8% đến +15%**.
+- [ ] Kiểm tra thực tế: Chạy thử detection + ByteTrack trên 5–10 clip trong thư mục `vn_cctv_samples/` trên Drive xem hiện tượng mất track xe máy có giảm không.
+- [ ] Chạy lại baseline rule-based từ Tuần 3 với trọng số mới để cập nhật bảng metrics.
+
+---
 
 #### Deliverables tuần 4-5:
-- ✅ Dataset VN: 2,000+ ảnh detection label + 250+ clip accident/normal label
-- ✅ YOLO11s fine-tuned, mAP cải thiện so với pretrained trên dữ liệu VN
-- ✅ Pipeline detection + tracking cải thiện trên video VN
-- ✅ Baseline metrics cập nhật
+- ✅ **Google Drive có cấu trúc thư mục hoàn chỉnh**, phân chia khoa học giữa datasets, checkpoints, configs và kết quả.
+- ✅ **Dataset mẫu có sẵn (3,000+ ảnh)** đã tải, remap nhãn chuẩn 6 class, verify sạch sẽ và sẵn sàng trên Drive.
+- ✅ **Dataset video tai nạn (CADP, CCD)** đã tải sẵn vào Drive phục vụ trực tiếp cho Tuần 6 & 7 mà không tốn công biên tập.
+- ✅ **YOLO11s fine-tuned hoàn tất**, trọng số `best.pt` lưu an toàn tại `MyDrive/accident_detection/checkpoints/yolo11s_vn_traffic/`.
+- ✅ **Báo cáo so sánh mAP** trước và sau fine-tune đối với phương tiện giao thông xe máy.
+
+---
 
 ---
 
@@ -777,12 +943,13 @@ velocity_norm = velocity / diagonal_length
 
 ### Tổng hợp dataset
 
-| Dataset | Loại | Số lượng | Góc camera | Dùng cho |
-|---|---|---|---|---|
-| **DoTA** | Dashcam anomaly | 4,677 video | Egocentric | Pretrain anomaly detection |
-| **CCD** | Dashcam crash | ~6,000 video | Egocentric | Train accident recognition |
-| **CADP** | CCTV accident | 1,416 video | Fixed | **Gần use case nhất** |
-| **Tự thu thập VN** | Hỗn hợp | 250-400 clip | Hỗn hợp | Fine-tune cho VN |
+| Dataset | Loại | Số lượng | Góc camera | Trạng thái nhãn / Cắt ghép | Dùng cho |
+|---|---|---|---|---|---|
+| **Roboflow VN Traffic** | Ảnh CCTV / đường phố VN | ~3,000 – 4,500 ảnh | Camera đường phố | Gán nhãn sẵn 6 class YOLO | **Fine-tune YOLO11 (xe cộ VN, không tốn công label)** |
+| **CADP** | CCTV accident video | 1,416 clip | Fixed CCTV | Cắt sẵn sự kiện + timestamp tai nạn | **Gần use case CCTV giám sát nhất (không cần cắt ghép)** |
+| **CCD** | Dashcam crash video | ~4,500 clip | Egocentric dashcam | Cắt sẵn 50 frames/clip + label Normal/Crash | Huấn luyện mô hình nhận diện va chạm |
+| **DoTA** | Dashcam anomaly video | 4,677 video (lọc subset) | Egocentric | Có sẵn spatial-temporal annotations | Huấn luyện và benchmark bài toán anomaly detection |
+| **VN CCTV Quick Samples** | Video camera giao thông VN | 5 – 10 clip ngắn | Fixed CCTV | Dùng trực tiếp | Kiểm thử trực quan (sanity check) & video demo cuối |
 
 ### Xử lý mất cân bằng dữ liệu
 
@@ -804,38 +971,34 @@ flowchart TD
 ### Lưu trữ trên Google Drive
 
 ```
-MyDrive/accident_detection/
-├── datasets/
-│   ├── dota/                    ← 55GB (tải dần)
-│   │   ├── videos/
-│   │   ├── annotations/
-│   │   └── splits/
-│   ├── ccd/
-│   ├── cadp/
-│   ├── vn_traffic/              ← dữ liệu tự thu thập
-│   │   ├── images/
-│   │   │   ├── train/
-│   │   │   └── val/
-│   │   ├── labels/
-│   │   │   ├── train/
-│   │   │   └── val/
-│   │   ├── videos/
-│   │   │   ├── accident/
-│   │   │   └── normal/
-│   │   └── data.yaml
-│   └── trajectory_features/     ← đặc trưng trích xuất
-│       ├── train/
-│       └── val/
-├── checkpoints/
-│   ├── yolo11s_vn_traffic/
-│   ├── lstm_trajectory/
-│   ├── x3d_accident/
-│   └── fusion/
-├── results/
-│   ├── baseline_rules/
-│   ├── lstm_only/
-│   └── full_pipeline/
-└── logs/
+MyDrive/
+└── accident_detection/
+    ├── configs/                               ← File cấu hình toàn dự án
+    │   ├── data.yaml                          ← Cấu hình dataset YOLO (trỏ đường dẫn Drive)
+    │   ├── bytetrack_custom.yaml              ← Tham số tinh chỉnh tracking ByteTrack
+    │   └── pipeline_config.yaml               ← Cấu hình ngưỡng cảnh báo và tích hợp
+    ├── datasets/                              ← Kho dữ liệu tập trung
+    │   ├── detection/                         ← Dữ liệu phục vụ fine-tune YOLO11 (Tuần 5)
+    │   │   ├── raw_zips/                      ← File zip tải về từ Roboflow/Kaggle (dự phòng)
+    │   │   └── vn_traffic_yolo/               ← Dataset chính đã giải nén & map nhãn
+    │   │       ├── images/ (train/, val/)     ← Ảnh huấn luyện & kiểm định
+    │   │       ├── labels/ (train/, val/)     ← File *.txt tọa độ YOLO tương ứng
+    │   │       └── data.yaml                  ← Cấu hình dataset cục bộ
+    │   ├── video_accidents/                   ← Video clip phục vụ phân loại va chạm & demo
+    │   │   ├── cadp_cctv/                     ← 1,416 video CCTV cắt sẵn từ CADP
+    │   │   ├── ccd_dashcam/                   ← 4,500 video ngắn 50-frame từ CCD
+    │   │   └── vn_cctv_samples/               ← 5–10 clip thực tế VN làm bài test demo
+    │   └── extracted_features/                ← Dành riêng cho Tuần 6 (chuỗi trajectory)
+    │       ├── train/
+    │       └── val/
+    ├── checkpoints/                           ← Nơi lưu trữ weights (sống còn khi train Colab/Kaggle)
+    │   ├── pretrained/                        ← Model gốc: yolo11s.pt, x3d_s.pt
+    │   ├── yolo11s_vn_traffic/                ← Lưu best.pt, last.pt sau khi fine-tune Tuần 5
+    │   ├── lstm_trajectory/                   ← Lưu trọng số mạng LSTM ở Tuần 6
+    │   └── x3d_fusion/                        ← Lưu trọng số mạng X3D & Fusion ở Tuần 7
+    ├── runs/                                  ← Logs tensorboard và biểu đồ training
+    ├── results/                               ← Đánh giá metrics & JSON xuất ra
+    └── demo_outputs/                          ← Video kết quả sau khi pipeline xử lý
 ```
 
 ---
@@ -1065,9 +1228,11 @@ flowchart TD
 
 ### Cuối tuần 5 (Fine-tune Checkpoint)
 
-- [ ] Dataset VN thu thập + gán nhãn xong
-- [ ] YOLO11 fine-tuned, cải thiện detection trên video VN
-- [ ] Pipeline cập nhật metrics
+- [ ] Data mẫu có sẵn (Roboflow VN Traffic, CADP, CCD) đã đồng bộ & kiểm tra trên Drive
+- [ ] Cấu trúc thư mục Google Drive chuẩn hóa, file `data.yaml` cấu hình hoàn tất
+- [ ] YOLO11 fine-tuned thành công trên tập phương tiện giao thông VN, mAP@0.5 cải thiện
+- [ ] Checkpoint `yolo11s_vn_best.pt` lưu an toàn trên Google Drive
+- [ ] Pipeline cập nhật metrics detection & tracking trên dữ liệu thực tế
 
 ### Cuối tuần 8 (Final Delivery) 🎯
 

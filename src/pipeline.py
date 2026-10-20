@@ -11,6 +11,7 @@ from collections import deque
 import cv2
 import numpy as np
 import yaml
+import torch
 
 from .detection.yolo_detector import YOLODetector
 from .tracking.trajectory_manager import TrajectoryManager
@@ -39,6 +40,8 @@ class AccidentDetectionPipeline:
 
         # System settings
         self.device = self.config.get("system", {}).get("device", "cpu")
+        if self.device == "cuda" and not torch.cuda.is_available():
+            self.device = "cpu"
         self.fps = float(self.config.get("system", {}).get("fps", 30))
 
         # Module 1: Detector & Tracker
@@ -78,10 +81,17 @@ class AccidentDetectionPipeline:
 
         self.use_lstm = cls_cfg.get("lstm", {}).get("enabled", False)
         lstm_weights = cls_cfg.get("lstm", {}).get("weights")
-        if self.use_lstm and lstm_weights and os.path.exists(lstm_weights):
-            self.lstm_classifier = TrajectoryAccidentClassifier.load_from_checkpoint(
-                lstm_weights, device=self.device
-            )
+        if self.use_lstm and lstm_weights:
+            if not os.path.exists(lstm_weights):
+                alt_lstm = os.path.join("checkpoints", "lstm_trajectory", "lstm_trajectory_best.pt")
+                if os.path.exists(alt_lstm):
+                    lstm_weights = alt_lstm
+            if os.path.exists(lstm_weights):
+                self.lstm_classifier = TrajectoryAccidentClassifier.load_from_checkpoint(
+                    lstm_weights, device=self.device
+                )
+            else:
+                self.lstm_classifier = None
         else:
             self.lstm_classifier = None
 
@@ -89,8 +99,13 @@ class AccidentDetectionPipeline:
         vis_cfg = cls_cfg.get("visual_x3d", {})
         self.use_visual = vis_cfg.get("enabled", False)
         self.cascade_threshold = vis_cfg.get("cascade_threshold", 0.3)
+        vis_weights = vis_cfg.get("weights")
+        if vis_weights and not os.path.exists(vis_weights):
+            alt_vis = os.path.join("checkpoints", "x3d_fusion", "x3d_s_accident_best.pt")
+            if os.path.exists(alt_vis):
+                vis_weights = alt_vis
         self.visual_classifier = VideoAccidentClassifier(
-            weights_path=vis_cfg.get("weights"),
+            weights_path=vis_weights,
             device=self.device,
             num_frames=vis_cfg.get("num_frames", 16),
             crop_size=vis_cfg.get("crop_size", 160),
@@ -98,11 +113,16 @@ class AccidentDetectionPipeline:
 
         # Module 5: Fusion
         fus_cfg = self.config.get("fusion", {})
+        fus_weights = fus_cfg.get("weights")
+        if fus_weights and not os.path.exists(fus_weights):
+            alt_fus = os.path.join("checkpoints", "x3d_fusion", "fusion_best.pt")
+            if os.path.exists(alt_fus):
+                fus_weights = alt_fus
         self.fusion = AccidentFusion(
             method=fus_cfg.get("method", "cascade"),
             motion_weight=fus_cfg.get("motion_weight", 0.6),
             visual_weight=fus_cfg.get("visual_weight", 0.4),
-            weights_path=fus_cfg.get("weights"),
+            weights_path=fus_weights,
         )
 
         # Module 6: Post-Processing
