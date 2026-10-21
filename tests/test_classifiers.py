@@ -81,3 +81,40 @@ def test_post_processor_multi_vehicle_extension():
     assert set(last_event["tracks"]) == {1, 2, 3}
     assert last_event["num_vehicles"] == 3
     assert last_event["frame_end"] == 15
+
+
+def test_trajectory_lstm_checkpoint_load(tmp_path):
+    import torch
+    from src.classifiers.lstm_classifier import TrajectoryAccidentClassifier
+
+    model = TrajectoryAccidentClassifier(input_dim=15, hidden_dim=32, num_layers=1)
+    ckpt_path = str(tmp_path / "lstm_test.pt")
+    
+    # Simulate saving checkpoint with a numpy scalar (e.g. from roc_auc_score)
+    torch.save({
+        "state_dict": model.state_dict(),
+        "config": {"input_dim": 15, "hidden_dim": 32, "num_layers": 1},
+        "best_auc": np.float64(0.88),
+    }, ckpt_path)
+
+    loaded_model = TrajectoryAccidentClassifier.load_from_checkpoint(ckpt_path, device="cpu")
+    assert loaded_model is not None
+
+    # Test inference
+    dummy_seq = np.random.randn(30, 15).astype(np.float32)
+    prob = loaded_model.predict_proba(dummy_seq, device="cpu")
+    assert 0.0 <= prob <= 1.0
+
+
+def test_fusion_checkpoint_load(tmp_path):
+    import torch
+    from src.fusion.fusion import AccidentFusion
+
+    fusion = AccidentFusion(method="mlp")
+    ckpt_path = str(tmp_path / "fusion_test.pt")
+    fusion.save_checkpoint(ckpt_path)
+
+    loaded_fusion = AccidentFusion.load_from_checkpoint(ckpt_path)
+    assert loaded_fusion is not None
+    fused_score = loaded_fusion.fuse(0.8, 0.7)
+    assert 0.0 <= fused_score <= 1.0

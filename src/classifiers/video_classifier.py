@@ -76,7 +76,10 @@ class VideoAccidentClassifier:
 
         if self.weights_path and os.path.exists(self.weights_path):
             try:
-                state_dict = torch.load(self.weights_path, map_location=self.device)
+                try:
+                    state_dict = torch.load(self.weights_path, map_location=self.device, weights_only=False)
+                except TypeError:
+                    state_dict = torch.load(self.weights_path, map_location=self.device)
                 model.load_state_dict(state_dict)
             except Exception as e:
                 print(f"[Warning] Failed to load X3D weights from {self.weights_path}: {e}")

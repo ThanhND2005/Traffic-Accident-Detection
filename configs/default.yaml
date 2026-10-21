@@ -41,7 +41,7 @@ classifiers:
     alert_threshold: 0.30          # Combined rule score required to trigger an alert (lowered from 0.50)
 
   lstm:
-    enabled: false                 # Set to true once weights are trained
+    enabled: true              # Set to true once weights are trained
     weights: "checkpoints/lstm_trajectory_best.pt"
     input_dim: 15
     hidden_dim: 64
@@ -51,7 +51,7 @@ classifiers:
     threshold: 0.65
 
   visual_x3d:
-    enabled: false                 # Cascade visual branch (X3D-S)
+    enabled: true                 # Cascade visual branch (X3D-S)
     weights: "checkpoints/x3d_s_accident_best.pt"
     cascade_threshold: 0.30        # Only trigger visual branch when motion_score > 0.30
     num_frames: 16
@@ -59,11 +59,11 @@ classifiers:
     threshold: 0.70
 
 fusion:
-  method: "cascade"               # "cascade", "weighted", or "mlp"
-  weights: "checkpoints/fusion_best.pt"
+  method: "mlp"               # "cascade", "weighted", or "mlp"
+  weights: "checkpoints/x3d_fusion/fusion_best.pt"
   motion_weight: 0.60
   visual_weight: 0.40
-  final_threshold: 0.60
+  final_threshold: 0.45
 
 postprocessing:
   temporal_window: 10             # Number of frames in sliding window (widened from 5)

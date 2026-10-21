@@ -36,7 +36,10 @@ class AccidentFusion(nn.Module):
 
         if weights_path and os.path.exists(weights_path):
             try:
-                state_dict = torch.load(weights_path, map_location="cpu")
+                try:
+                    state_dict = torch.load(weights_path, map_location="cpu", weights_only=False)
+                except TypeError:
+                    state_dict = torch.load(weights_path, map_location="cpu")
                 self.load_state_dict(state_dict)
             except Exception as e:
                 print(f"[Warning] Failed to load Fusion weights from {weights_path}: {e}")
